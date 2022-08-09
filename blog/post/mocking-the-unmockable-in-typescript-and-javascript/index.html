@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>Mocking the Unmockable in TypeScript and JavaScript | Blog</title><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="description" content="Reese's website about programming."><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="alternate" type="application/rss+json" title="Reese Schultz" href="../../feed.json"><link rel="icon" type="image/x-icon" href="../../../favicon.ico"><link rel="stylesheet" href="../../../styles.css"><link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/styles/base16/dracula.min.css"><meta property="og:type" content="website">
+<meta property="og:site_name" content="Reese Schultz">
+<meta property="og:locale" content="en">
+<meta property="og:description" content="Reese's website about programming.">
+<meta property="og:url" content="http://localhost/blog/post/mocking-the-unmockable-in-typescript-and-javascript/">
+<meta name="twitter:description" content="Reese's website about programming.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@ReeseCodes">
+<meta itemprop="description" content="Reese's website about programming.">
+<meta name="description" content="Reese's website about programming.">
+<meta name="generator" content="Lume v1.10.1">
+</head><body><div id="header"><h1><a href="../../..">Reese<br>Schultz</a></h1></div><p class="go-back for-post"><a class="change-color" href="../..">...back to the blog!</a></p><div id="content"><div id="post"><h2>Mocking the Unmockable in TypeScript and JavaScript</h2><p>Yes, you can mock ES6 function exports! Here's how.</p><div class="for-post" id="post-info"><ul class="tags for-post"><li class="tag typescript"><a href="../../tag/typescript">typescript</a></li></ul><p class="date for-post">Created on June 28, 2022.</p></div><h3>Scenario</h3>
+<p>Consider the following scenario. You're using a package or module that directly
+exports functions, so you're unable to mock them. Let's presume this is the
+source code of one such function:</p>
+<pre><code class="language-typescript">export function theirFunction(): string {
+  return "";
+}
+</code></pre>
+<blockquote>
+<p>We're using TypeScript in this example, but, if you remove the types, then you
+have ES6-compliant JavaScript.</p>
+</blockquote>
+<p>Let's say your code uses <code>theirFunction</code> like so:</p>
+<pre><code class="language-typescript">function yourFunction(): boolean {
+  return "" === theirFunction();
+}
+</code></pre>
+<p>We'll assume you must always depend on <code>theirFunction</code> returning an empty
+string, and maybe you want a test to fail if the output changes per an upgrade.
+You <em>could</em> directly test <code>theirFunction</code>, although you only care about its
+output changing in the context of <code>yourFunction</code>, not any others.</p>
+<p>This may be an arbitrary example, but it has practical implications; after all,
+how do we mock <code>theirFunction</code>? It's immutable, so reassignment goes out the
+window, meaning that a conventional mocking library won't work here, at least
+not directly.</p>
+<h3>Solution</h3>
+<p>To solve this problem, I suggest making a loosely-coupled, mockable extension of
+the library encapsulating <code>theirFunction</code>. Consider creating a file like this:</p>
+<pre><code class="language-typescript">import { theirFunction as theirUnmockableFunction } from "./..";
+
+export default new (class {
+  // ...
+
+  theirFunction(): string {
+    return theirUnmockableFunction();
+  }
+
+  // ...
+})();
+</code></pre>
+<p>The exported anonymous class is effectively a singleton that we must now use as
+a stand-in for their library, as is the case in <code>yourFunction</code>:</p>
+<pre><code class="language-typescript">import theirMockableLibrary from "./../theirMockableLibrary.ts";
+
+function yourFunction(): boolean {
+  return "" === theirMockableLibrary.theirFunction();
+}
+</code></pre>
+<p>Congratulations, now your stubs and spies should work!</p>
+<p>For example, with Deno, we could stub <code>theirFunction</code> in this way:</p>
+<pre><code class="language-typescript">import yourLibrary from "./../yourLibrary.ts";
+import theirMockableLibrary from "./../theirMockableLibrary.ts";
+
+import { returnsNext, stub } from "https://deno.land/std/testing/mock.ts";
+
+import { assertEquals } from "https://deno.land/std/testing/asserts.ts";
+
+// ...
+
+const theirFunctionStub = stub(
+  theirMockableLibrary,
+  "theirFunction",
+  returnsNext(["not an empty string!"]),
+);
+
+// This should fail (because the mocking works!):
+assertEquals(yourLibrary.yourFunction(), true);
+
+theirFunctionStub.restore();
+
+// ...
+</code></pre>
+<h3>Conclusion</h3>
+<p>It's clear that there are two major downsides to this approach:</p>
+<ol>
+<li>All of the parameters of your mockable functions should be the same as those
+of the unmockable ones; you must also passthrough arguments appropriately.</li>
+<li>You must directly reference, via dot notation, the exported object of any
+mocked functions being called, whether in a test file or not. Fortunately,
+the flipside is that you may refer to the object by whatever name you
+like—probably not something unwieldly like <code>theirMockableLibary</code>.</li>
+</ol>
+<p>Hopefully this steers you away from hacking your package cache or something. And
+consider submitting a pull request to improve the mockability of whichever
+library you're using. The maintainers may be willing to hear you out. Have fun!</p>
+</div></div><ul class="social"><li class="github"><a target="_blank" href="https://github.com/reeseschultz"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 20 20"><title>Link to GitHub Profile</title><path d="M10 0a10 10 0 0 0-3.16 19.49c.5.1.68-.22.68-.48l-.01-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.1.39-1.99 1.03-2.69a3.6 3.6 0 0 1 .1-2.64s.84-.27 2.75 1.02a9.58 9.58 0 0 1 5 0c1.91-1.3 2.75-1.02 2.75-1.02.55 1.37.2 2.4.1 2.64.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85l-.01 2.75c0 .26.18.58.69.48A10 10 0 0 0 10 0"></path></svg></a></li><li class="youtube"><a target="_blank" href="https://www.youtube.com/channel/UC9DCrtoQBTBrIyZ4mXNzlTA"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 22"><title>Link to YouTube Channel</title><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"></path></svg></a></li><li class="twitter"><a target="_blank" href="https://twitter.com/ReeseCodes"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 20 20"><title>Link to Twitter Profile</title><path d="M6.29 18.25c7.55 0 11.67-6.25 11.67-11.67v-.53c.8-.59 1.49-1.3 2.04-2.13-.75.33-1.54.55-2.36.65a4.12 4.12 0 0 0 1.8-2.27c-.8.48-1.68.81-2.6 1a4.1 4.1 0 0 0-7 3.74 11.65 11.65 0 0 1-8.45-4.3 4.1 4.1 0 0 0 1.27 5.49C2.01 8.2 1.37 8.03.8 7.7v.05a4.1 4.1 0 0 0 3.3 4.03 4.1 4.1 0 0 1-1.86.07 4.1 4.1 0 0 0 3.83 2.85A8.23 8.23 0 0 1 0 16.4a11.62 11.62 0 0 0 6.29 1.84"></path></svg></a></li></ul><div id="footer"><div id="copyright-and-license"><p id="copyright">© 2021-2022 <a href="../../..">Reese Schultz</a></p><a id="license" href="../../../license">License</a></div></div><script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/highlight.min.js"></script><script>if (hljs) hljs.highlightAll();</script><script src="//cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.10/clipboard.min.js"></script><script src="../../../copy.js"></script></body></html>

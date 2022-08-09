@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>Spawning Prefabs With Unity DOTS | Blog</title><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="description" content="Reese's website about programming."><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="alternate" type="application/rss+json" title="Reese Schultz" href="../../feed.json"><link rel="icon" type="image/x-icon" href="../../../favicon.ico"><link rel="stylesheet" href="../../../styles.css"><link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/styles/base16/dracula.min.css"><meta property="og:type" content="website">
+<meta property="og:site_name" content="Reese Schultz">
+<meta property="og:locale" content="en">
+<meta property="og:description" content="Reese's website about programming.">
+<meta property="og:url" content="http://localhost/blog/post/spawning-prefabs-with-unity-dots/">
+<meta name="twitter:description" content="Reese's website about programming.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@ReeseCodes">
+<meta itemprop="description" content="Reese's website about programming.">
+<meta name="description" content="Reese's website about programming.">
+<meta name="generator" content="Lume v1.10.1">
+</head><body><div id="header"><h1><a href="../../..">Reese<br>Schultz</a></h1></div><p class="go-back for-post"><a class="change-color" href="../..">...back to the blog!</a></p><div id="content"><div id="post"><h2>Spawning Prefabs With Unity DOTS</h2><p>How to manage and instantiate entity prefabs.</p><div class="for-post" id="post-info"><ul class="tags for-post"><li class="tag unity"><a href="../../tag/unity">unity</a></li><li class="tag csharp"><a href="../../tag/csharp">c#</a></li></ul><p class="date for-post">Last updated on July 20, 2022.</p><p class="date for-post">Created on September 17, 2021.</p></div><h3>Introduction</h3>
+<p>With Unity's implementation of the entity-component-system (ECS) pattern, there
+are two modes from which spawning can be initiated:</p>
+<ol>
+<li><strong>Authoring</strong>, which is when we're manually designing stuff. That's when
+we're in the editor, adding GameObjects and adjusting parameters. Yes, with
+Unity ECS, we still use GameObjects for setting up levels and prefabs. We try
+to convert most of those GameObjects into entities upon startup with special
+scripts. Sometimes it's not feasible, in which we take a hybrid approach
+(orchestrating DOTS and non-DOTS code).</li>
+<li><strong>Runtime</strong>, which is referring to the period <em>after</em> authoring, and before
+execution halts. In other words, this is what happens while people are
+playing your game. It's the process, minus authoring conversion at the
+beginning.</li>
+</ol>
+<p>Since Unity DOTS is all about conquering CPU-bound tasks, you may be interested
+in it for creating a runtime-heavy game. It's great for city builders,
+sandboxes, real-time strategy games, etc. With that in mind, if you're anything
+like me, you're mainly interested in spawning at runtime, specifically using
+prefabs. I created a package for this, and I'll show you how to use it.</p>
+<h3>Prerequisites</h3>
+<p>Before you proceed, make sure you've installed the <em>Entities</em> and <em>Hybrid
+Renderer</em> packages in your project, at the bare minimum. This tutorial has been
+updated for Entities and Hybrid Renderer <code>0.51.0-preview.32</code>. It <em>may</em> be
+further updated to account for future developments.</p>
+<p>You also need to install the
+<a href="https://github.com/reeseschultz/ReeseUnityDemos/tree/master/Packages/com.reese.epg#reeses-entity-prefab-groups" target="_blank"><em>Entity Prefab Groups</em></a>
+package by following the provided instructions, which is part of my
+<a href="https://github.com/reeseschultz/ReeseUnityDemos" target="_blank">Unity monorepo</a>.</p>
+<h3>Authoring</h3>
+<p>After you've installed Entity Prefab Groups, you're ready to create a component
+(in terms of ECS). Here's how:</p>
+<ol>
+<li>Create a script called <code>SomeComponent.cs</code>.</li>
+<li>Copy-paste this code into the script (namespacing optional):</li>
+</ol>
+<pre><code class="language-csharp">using System;
+using Unity.Entities;
+
+[Serializable]
+[GenerateAuthoringComponent]
+public struct SomeComponent : IComponentData { }
+</code></pre>
+<p>The component ought to be serializable for saving and loading, as indicated by
+the <code>Serializable</code> attribute. Additionally, the <code>GenerateAuthoringComponent</code>
+attribute instructs Unity to generate a special <code>MonoBehaviour</code> for you, one
+that adds <code>SomeComponent</code> to the entity during the conversion process.</p>
+<p>Also, it's worth noting that this component is a special one: it's a component
+<em>tag</em>, because there's no data in it. There could be, however, if you want.
+That's up to you. You could add any
+<a href="https://en.wikipedia.org/wiki/Blittable_types" target="_blank">blittable</a> data to the
+component, such as an <code>Entity</code>, a <code>float3</code>, or whatever. Generated authoring
+components allow you to change these properties during authoring. Entities end
+up being represented as GameObjects during authoring, so you can reference them
+as long as they're being converted into entities too, even children of a prefab!</p>
+<p>Anyway, after you save the script and switch back to the Unity editor, you'll
+have an authoring component to work with.</p>
+<p><img src="../../media/some-component.gif" alt="adding the component"></p>
+<p>Go ahead and add that component to the prefab. Note how it's named <em>Some
+Component Authoring</em>, indicating exactly what it's intended for.</p>
+<p>Next, open up a scene and create a new GameObject called <em>Prefabs</em>.</p>
+<p><img src="../../media/create-prefabs-go.gif" alt="creating a prefabs gameobject"></p>
+<p>Now you're ready turn that GameObject into an <code>EntityPrefabGroup</code>! Add it just
+like you would any other <code>MonoBehaviour</code>. Then add the prefab you made to its
+list.</p>
+<p><img src="../../media/entity-prefab-group.gif" alt="adding the entity prefab group component"></p>
+<p>The <code>EntityPrefabGroup</code> adds the needed <code>ConvertToEntity</code> component
+automatically, which is used to convert a GameObject into an entity. Unless
+specified otherwise with a custom authoring script, this conversion will even
+include the transform, mesh, render bounds, etc. For your regular workflow, I
+recommend maximally exploiting the <code>GenerateAuthoringComponent</code> attribute to
+focus on the data relevant to your work.</p>
+<h3>Runtime</h3>
+<h4>Single-threaded Context</h4>
+<p>It's time to spawn some entities:</p>
+<pre><code class="language-csharp">using Reese.EntityPrefabGroups;
+using Unity.Entities;
+using Unity.Mathematics;
+using Unity.Transforms;
+
+public partial class SomeSystem : SystemBase
+{
+    protected override void OnUpdate()
+    {
+        var somePrefab = EntityManager.GetPrefab&lt;SomeComponent&gt;();
+        var someInstance = EntityManager.Instantiate(somePrefab);
+        var random = new Unity.Mathematics.Random((uint)new System.Random().Next());
+
+        EntityManager.AddComponentData(someInstance, new Translation
+        {
+            Value = random.NextFloat3(-100, 100)
+        });
+
+        EntityManager.AddComponentData(someInstance, new Rotation
+        {
+            Value = quaternion.Euler(random.NextFloat3())
+        });
+
+        EntityManager.AddComponentData(someInstance, new Scale
+        {
+            Value = random.NextFloat() * 5
+        });
+    } 
+}
+</code></pre>
+<p>In the above example, we get the entity prefab associated with <code>SomeComponent</code>.
+Since <code>GetPrefab</code> runs a query behind the scenes, it can only be safely run from
+<code>OnUpdate</code>, as to opposed to say, <code>OnCreate</code> and <code>OnStartRunning</code>. That said,
+queries are extremely efficient, so creating and executing them each frame is
+perfectly fine. This does not have the same performance impact as finding
+GameObjects, or getting their attached scripts, per frame.</p>
+<p>Furthermore, be aware that the component, <code>SomeComponent</code> in this case, should
+be a <em>singleton</em>. This means it should uniquely identify the prefab—other
+prefabs should <em>not</em> have that component! Now, just to be clear, singletons and
+tags are two different concepts. A singleton could be a component tag, or it
+could have various fields.</p>
+<p><code>somePrefab</code> is instantiated by creating a new <code>someInstance</code> each frame. We
+randomize the <code>Translation</code>, <code>Rotation</code>, and <code>Scale</code> component values. Note how
+I use <code>AddComponentData</code> instead of <code>SetComponentData</code>. This is because setting
+assumes that a component already exists, even when it doesn't, which could cause
+a runtime error. Adding involves a check that actually either adds or sets a
+component, with no noticeable impact on performance. The main downside to adding
+instead of setting is the potential to impose <em>structural changes</em>, which we'll
+discuss shortly.</p>
+<p>Anyhow, the result of our code ought to look something like this:</p>
+<p><img src="../../media/spawning-skulls.gif" alt="spawning skulls"></p>
+<p>Well, maybe you're not using skulls, but I am.</p>
+<p>And so far, we're not even taking advantage of the fact that our prefabs are
+grouped. What if we wanted to spawn random animals, or variants of anything? To
+do that, you would add your prefab variants to an <code>EntityPrefabGroup</code> list. That
+group GameObject would require its own singleton component, which you've already
+learned how to create in this tutorial.</p>
+<p>With all that in mind, we could spawn variants from said group like so:</p>
+<pre><code class="language-csharp">using Reese.EntityPrefabGroups;
+using Unity.Entities;
+using Unity.Transforms;
+
+public partial class SomeSystem : SystemBase
+{
+    protected override void OnUpdate()
+    {
+        var animalPrefabs = EntityManager.GetPrefabs&lt;Animal&gt;().Reinterpret&lt;Entity&gt;();
+        var randomIndex = UnityEngine.Random.Range(0, animalPrefabs.Length);
+        var someInstance = EntityManager.Instantiate(animalPrefabs[randomIndex]);
+        var random = new Unity.Mathematics.Random((uint)new System.Random().Next());
+
+        EntityManager.AddComponentData(someInstance, new Translation
+        {
+            Value = random.NextFloat3(-100, 100)
+        });
+    } 
+}
+</code></pre>
+<p>There's a subtle difference here: this time we call <code>GetPrefabs</code> plural, rather
+than the singular <code>GetPrefab</code>. It should be run from <code>OnUpdate</code> as well. This
+returns a <code>DynamicBuffer&lt;PrefabGroup&gt;</code>. The <code>PrefabGroup</code> comes from the Entity
+Prefab Groups package, and its elements can be converted into entities with
+ease. That's where <code>Reinterpret&lt;Entity&gt;</code> comes in. Ultimately, <code>animalPrefabs</code>
+evaluates as <code>DynamicBuffer&lt;Entity&gt;</code>. That buffer, I should mention, is just a
+way to hold a variable number of elements pertaining to a blittable type.</p>
+<p>There's not much else here. We instantiate a randomly selected prefab from said
+buffer. Then we just set a random translation this time. In the process, we've
+used three different random number generators out of sheer disregard that the
+API of one may cover all our needs. Too bad we'll never know, because we don't
+read APIs, nor documentation.</p>
+<p>We're programmers, after all.</p>
+<p>If you've programmed (and authored!) correctly up until this point, then you
+should see something like this:</p>
+<p><img src="../../media/spawning-animals.gif" alt="spawning animals"></p>
+<p>In all seriousness, you ought to familiarize yourself with the <code>EntityManager</code>.
+Why? Because there's a lot it can do that I can't cover in a tutorial. It can
+bulk-spawn entities using a <code>NativeArray&lt;Entity&gt;</code>, for example. Read more about
+the <code>EntityManager</code>
+<a href="https://docs.unity3d.com/Packages/com.unity.entities@0.51/api/Unity.Entities.EntityManager.html" target="_blank">here</a>.</p>
+<h4>Parallel Context</h4>
+<p>Just to clarify, everything we have done has been on the main thread. All
+instantiation occurs on the main thread, even if prompted from a parallel
+context. To understand why that is, you have to consider that entities and their
+components compose a memory layout. A term for when this layout changes is the
+<em>structural change</em>, which occurs when entities, or their components, are added
+or removed.</p>
+<p>Structural changes result in synchronization points, wherein all jobs must
+complete for processing to continue. As the
+<a href="https://docs.unity3d.com/Packages/com.unity.entities@0.51/api/Unity.Entities.EntityManager.html" target="_blank">EntityManager documentation</a>
+puts it, this "blocks the main thread and prevents the application from taking
+advantage of all available cores as the running Jobs wind down." Thus, long
+story short, you don't want parallel jobs winding up and down multiple times in
+a single frame due to sync points, so we must orchestrate said jobs with care.
+We want to try to keep it down to only one sync point, if possible, at the
+beginning or end of a frame. The best way to attempt this is to use:</p>
+<ol>
+<li>A <strong>memory barrier</strong>, which, in the case of Unity ECS, is a reference to the
+<code>EntityCommandBufferSystem</code>. This system can queue up <em>commands</em> performed
+during parallel-executing jobs. Commands performed with the memory barrier
+execute deterministically, so they're played back in order. When are they
+played back? Either at the end or beginning of a frame, depending on which
+flavor you choose.</li>
+<li>And you need a <strong>command buffer</strong>, the actual buffer of commands that the
+memory barrier enqueues.</li>
+</ol>
+<p>Putting what we know about the memory barrier and command buffer together, you
+can copy-paste the following as a repeatable pattern for processing in a
+parallel context with entities:</p>
+<pre><code class="language-csharp">namespace SomeNamespace
+{
+    public partial class SomeSystem : SystemBase
+    {
+        EntityCommandBufferSystem barrier =&gt; World.GetOrCreateSystem&lt;EndSimulationEntityCommandBufferSystem&gt;();
+
+        protected override void OnUpdate()
+        {
+            var commandBuffer = barrier.CreateCommandBuffer().AsParallelWriter();
+
+            Entities
+                .WithAll&lt;SomeComponent&gt;()
+                .ForEach((Entity entity, int entityInQueryIndex) =&gt;
+                {
+                    if (someConditionMet) commandBuffer.Instantiate(entityInQueryIndex, entity);
+                })
+                .WithName("SomeJob")
+                .ScheduleParallel();
+
+            barrier.AddJobHandleForProducer(Dependency);
+        }
+    }
+}
+</code></pre>
+<p>You'll notice that, after we create the memory buffer, we create a <em>parallel</em>
+command buffer from it via <code>AsParallelWriter</code>. According to the
+<a href="https://docs.unity3d.com/Packages/com.unity.entities@0.51/api/Unity.Entities.EntityManager.html" target="_blank">docs</a>,
+the magic <code>entityInQueryIndex</code> should "be used as the <code>jobIndex</code> for adding
+commands to a concurrent <code>EntityCommandBuffer</code>," usually instead of the
+<code>nativeThreadIndex</code>.</p>
+<p>We also inform the memory barrier, via <code>AddJobHandleForProducer</code>, that this
+system is in fact <em>producing</em>, which effectively means using the command buffer
+in any way that modifies the memory layout. Every time a job is generated via
+<code>ForEach</code> in a <code>SystemBase</code>, the system's built-in <code>Dependency</code> is automatically
+updated, which is simply a job handle. That's why we pass it via
+<code>AddJobHandleForProducer</code> following the job definition.</p>
+<p>Finally, please familiarize yourself with the <code>CommandBuffer</code>
+<a href="https://docs.unity3d.com/Packages/com.unity.entities@0.51/manual/entity_command_buffer.html" target="_blank">here</a>.
+Do not fear it. It performs almost all of the same exact operations as the
+<code>EntityManager</code>, with similar method names. Remember, all you're doing with it
+is queuing up commands to be executed either at the beginning or end of a frame
+on the main thread.</p>
+<p>I hope this helps!</p>
+</div></div><ul class="social"><li class="github"><a target="_blank" href="https://github.com/reeseschultz"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 20 20"><title>Link to GitHub Profile</title><path d="M10 0a10 10 0 0 0-3.16 19.49c.5.1.68-.22.68-.48l-.01-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.1.39-1.99 1.03-2.69a3.6 3.6 0 0 1 .1-2.64s.84-.27 2.75 1.02a9.58 9.58 0 0 1 5 0c1.91-1.3 2.75-1.02 2.75-1.02.55 1.37.2 2.4.1 2.64.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85l-.01 2.75c0 .26.18.58.69.48A10 10 0 0 0 10 0"></path></svg></a></li><li class="youtube"><a target="_blank" href="https://www.youtube.com/channel/UC9DCrtoQBTBrIyZ4mXNzlTA"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 22"><title>Link to YouTube Channel</title><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"></path></svg></a></li><li class="twitter"><a target="_blank" href="https://twitter.com/ReeseCodes"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 20 20"><title>Link to Twitter Profile</title><path d="M6.29 18.25c7.55 0 11.67-6.25 11.67-11.67v-.53c.8-.59 1.49-1.3 2.04-2.13-.75.33-1.54.55-2.36.65a4.12 4.12 0 0 0 1.8-2.27c-.8.48-1.68.81-2.6 1a4.1 4.1 0 0 0-7 3.74 11.65 11.65 0 0 1-8.45-4.3 4.1 4.1 0 0 0 1.27 5.49C2.01 8.2 1.37 8.03.8 7.7v.05a4.1 4.1 0 0 0 3.3 4.03 4.1 4.1 0 0 1-1.86.07 4.1 4.1 0 0 0 3.83 2.85A8.23 8.23 0 0 1 0 16.4a11.62 11.62 0 0 0 6.29 1.84"></path></svg></a></li></ul><div id="footer"><div id="copyright-and-license"><p id="copyright">© 2021-2022 <a href="../../..">Reese Schultz</a></p><a id="license" href="../../../license">License</a></div></div><script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/highlight.min.js"></script><script>if (hljs) hljs.highlightAll();</script><script src="//cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.10/clipboard.min.js"></script><script src="../../../copy.js"></script></body></html>

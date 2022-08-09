@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>Activating the Unity Editor's Play Button via Gamepad | Blog</title><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="description" content="Reese's website about programming."><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="alternate" type="application/rss+json" title="Reese Schultz" href="../../feed.json"><link rel="icon" type="image/x-icon" href="../../../favicon.ico"><link rel="stylesheet" href="../../../styles.css"><link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/styles/base16/dracula.min.css"><meta property="og:type" content="website">
+<meta property="og:site_name" content="Reese Schultz">
+<meta property="og:locale" content="en">
+<meta property="og:description" content="Reese's website about programming.">
+<meta property="og:url" content="http://localhost/blog/post/unity-gamepad-play-mode/">
+<meta name="twitter:description" content="Reese's website about programming.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@ReeseCodes">
+<meta itemprop="description" content="Reese's website about programming.">
+<meta name="description" content="Reese's website about programming.">
+<meta name="generator" content="Lume v1.10.1">
+</head><body><div id="header"><h1><a href="../../..">Reese<br>Schultz</a></h1></div><p class="go-back for-post"><a class="change-color" href="../..">...back to the blog!</a></p><div id="content"><div id="post"><h2>Activating the Unity Editor's Play Button via Gamepad</h2><p>How to use the start button on your controller to play games in the Unity editor.</p><div class="for-post" id="post-info"><ul class="tags for-post"><li class="tag unity"><a href="../../tag/unity">unity</a></li><li class="tag csharp"><a href="../../tag/csharp">c#</a></li></ul><p class="date for-post">Created on August 9, 2022.</p></div><p>If you're like me, you are pathologically eager to test changes to the games you
+work on. You might be so excited to validate correctness and usability that you
+naturally grab your controller, forgetting to first initiate play mode. Then, a
+hail of self-resentment buffets your very soul. You gaze upon the Unity editor,
+taking a moment to process what you have done. You are holding the controller in
+both hands, and yet play mode is inactive. Now you must put the controller back
+down.</p>
+<p>But no more.</p>
+<h3>A Solution</h3>
+<p>It is high time to put an end to the tyranny of keyboard- and mouse-based
+initialization of play mode. With a simple editor script, we shall reclaim our
+dignity by starting play mode with the start button on any standard gamepad,
+including DualSense and Joy-Con controllers.</p>
+<p>Here's the script:</p>
+<pre><code class="language-csharp">#if UNITY_EDITOR
+
+using UnityEditor;
+using UnityEngine.InputSystem;
+
+[InitializeOnLoad]
+public class PlayWithGamepad
+{
+    static PlayWithGamepad()
+        =&gt; EditorApplication.update += Update;
+
+    static void Update()
+    {
+        var gamepad = Gamepad.current;
+
+        if (gamepad == null) return;
+
+        if (!EditorApplication.isPlaying &amp;&amp; gamepad.startButton.isPressed)
+        {
+            EditorApplication.EnterPlaymode();
+        }
+    }
+}
+
+#endif
+</code></pre>
+<p>You are free to use this script to make your life less bad. One caveat is that
+said script uses the
+<a href="https://docs.unity3d.com/Packages/com.unity.inputsystem@1.0" target="_blank">new input system</a>,
+which, honestly, you should be using if you're making games with Unity. The new
+input system takes getting used to, but, among other things, it normalizes input
+across the spectrum of input devices. It handles deadzones. Perhaps more
+importantly, it conventionalizes input mapping, allowing for programmatic
+control of bindings from an in-game menu.</p>
+<h3>How the Code Works</h3>
+<p>Unsolicited advice aside, if you're wondering how the script works, it leverages
+directives to prevent itself from ending up in builds. A single instance of the
+script is loaded during the runtime of the editor with the <code>InitializeOnLoad</code>
+attribute. The reason the <code>PlayWithGamepad</code> class itself is <em>not</em> static is so
+that it can have a constructor. We use a parameterless constructor to hook into
+the editor's update loop by way of a delegate.</p>
+<p>Thus, <code>Update</code> becomes a callback beholden to the editor's update loop.</p>
+<p>For each time the editor updates, our <code>Update</code> method checks for the current
+gamepad. No, it's not inefficient to do it that way. Plus, you do <strong>not</strong> want
+to do that in the constructor, because what happens if you unplug one controller
+and plug in another while the Unity editor is open? You need to know the
+<em>current</em> available gamepad not just for this script, but as a general rule for
+your games.</p>
+<p>Of course, we pass control to the caller early if there is no gamepad. Then, if
+play mode isn't already active and the start button is pressed, we enter play
+mode.</p>
+<h3>Conclusion</h3>
+<p>Now when you grab your gamepad before entering play mode, no worries. With this
+script, you can just press the start button. With the explanation provided, you
+should know enough to modify this script to suit your specific needs. For
+example, if you do not yet have a pause menu to exit a game, you could,
+temporarily, modify the script to turn off play mode. I'll leave that to you.</p>
+<p>Hope this helps.</p>
+</div></div><ul class="social"><li class="github"><a target="_blank" href="https://github.com/reeseschultz"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 20 20"><title>Link to GitHub Profile</title><path d="M10 0a10 10 0 0 0-3.16 19.49c.5.1.68-.22.68-.48l-.01-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.1.39-1.99 1.03-2.69a3.6 3.6 0 0 1 .1-2.64s.84-.27 2.75 1.02a9.58 9.58 0 0 1 5 0c1.91-1.3 2.75-1.02 2.75-1.02.55 1.37.2 2.4.1 2.64.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85l-.01 2.75c0 .26.18.58.69.48A10 10 0 0 0 10 0"></path></svg></a></li><li class="youtube"><a target="_blank" href="https://www.youtube.com/channel/UC9DCrtoQBTBrIyZ4mXNzlTA"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 22"><title>Link to YouTube Channel</title><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"></path></svg></a></li><li class="twitter"><a target="_blank" href="https://twitter.com/ReeseCodes"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 20 20"><title>Link to Twitter Profile</title><path d="M6.29 18.25c7.55 0 11.67-6.25 11.67-11.67v-.53c.8-.59 1.49-1.3 2.04-2.13-.75.33-1.54.55-2.36.65a4.12 4.12 0 0 0 1.8-2.27c-.8.48-1.68.81-2.6 1a4.1 4.1 0 0 0-7 3.74 11.65 11.65 0 0 1-8.45-4.3 4.1 4.1 0 0 0 1.27 5.49C2.01 8.2 1.37 8.03.8 7.7v.05a4.1 4.1 0 0 0 3.3 4.03 4.1 4.1 0 0 1-1.86.07 4.1 4.1 0 0 0 3.83 2.85A8.23 8.23 0 0 1 0 16.4a11.62 11.62 0 0 0 6.29 1.84"></path></svg></a></li></ul><div id="footer"><div id="copyright-and-license"><p id="copyright">© 2021-2022 <a href="../../..">Reese Schultz</a></p><a id="license" href="../../../license">License</a></div></div><script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/highlight.min.js"></script><script>if (hljs) hljs.highlightAll();</script><script src="//cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.10/clipboard.min.js"></script><script src="../../../copy.js"></script></body></html>
